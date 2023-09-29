@@ -1,10 +1,9 @@
 // http://devernay.free.fr/hacks/chip8/C8TECH10.HTM
 
-#![allow(arithmetic_overflow)]
-
-use std::{ fs::File, io::Read };
+use std::{ fs::File, time, thread, io::Read };
 use rand::{ thread_rng, Rng };
-use minifb::{Key, Window, WindowOptions, Scale};
+
+mod gfx;
 
 const WIDTH: usize = 64;
 const HEIGHT: usize = 32;
@@ -303,7 +302,7 @@ impl Chip8 {
 
 		if self.sound_timer > 0 {
 			if self.sound_timer == 1 {
-				println!("Beep!");
+				print!("\x07");
 				self.sound_timer -= 1;
 			}
 		}
@@ -314,78 +313,24 @@ impl Chip8 {
 fn main() {
 
 	let mut emulator = Chip8::initialize();
-	emulator.load_rom("rom.ch8");
+	emulator.load_rom("test_opcode.ch8");
 
-    let mut window = Window::new(
-        "Test - ESC to exit",
-        WIDTH,
-        HEIGHT,
-        WindowOptions { 
-			scale: Scale::X16,
-			..WindowOptions::default()
-		 },
-    )
-    .unwrap();
+	gfx::initialize();
 
-	window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
+	loop {
+		emulator.cycle();
+		let mut canvas: Vec<Vec<gfx::Color>> = vec![];
 
-    let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
-
-	while window.is_open() && !window.is_key_down(Key::Escape) {
-        emulator.cycle();
-
-		// Graphics
-		for i in 0..2048 {
-			buffer[i] = emulator.gfx[i] as u32 * 0xFFFFFFFF;
+		for y in 0..HEIGHT {
+			canvas.push(vec![]);
+			for x in 0..WIDTH {
+				canvas[y].push(gfx::Color::from_u32(emulator.gfx[x + y*WIDTH] as u32 * 0xFFFFFF));
+			}
 		}
 
+		gfx::render(canvas);
 
-		// Input
-		window.get_keys().iter().for_each(|key| match key {
-            Key::Key0 => emulator.keys[0x0] = 1,
-            Key::Key1 => emulator.keys[0x1] = 1,
-			Key::Key2 => emulator.keys[0x2] = 1,
-			Key::Key3 => emulator.keys[0x3] = 1,
-			Key::Key4 => emulator.keys[0x4] = 1,
-            Key::Key5 => emulator.keys[0x5] = 1,
-			Key::Key6 => emulator.keys[0x6] = 1,
-			Key::Key7 => emulator.keys[0x7] = 1,
-			Key::Key8 => emulator.keys[0x8] = 1,
-            Key::Key9 => emulator.keys[0x9] = 1,
-			Key::A    => emulator.keys[0xa] = 1,
-			Key::B    => emulator.keys[0xb] = 1,
-			Key::C	  => emulator.keys[0xc] = 1,
-            Key::D    => emulator.keys[0xd] = 1,
-			Key::E    => emulator.keys[0xe] = 1,
-			Key::F    => emulator.keys[0xf] = 1,
-            _ => (),
-        });
-
-        window.get_keys_released().iter().for_each(|key| match key {
-            Key::Key0 => emulator.keys[0x0] = 0,
-            Key::Key1 => emulator.keys[0x1] = 0,
-			Key::Key2 => emulator.keys[0x2] = 0,
-			Key::Key3 => emulator.keys[0x3] = 0,
-			Key::Key4 => emulator.keys[0x4] = 0,
-            Key::Key5 => emulator.keys[0x5] = 0,
-			Key::Key6 => emulator.keys[0x6] = 0,
-			Key::Key7 => emulator.keys[0x7] = 0,
-			Key::Key8 => emulator.keys[0x8] = 0,
-            Key::Key9 => emulator.keys[0x9] = 0,
-			Key::A    => emulator.keys[0xa] = 0,
-			Key::B    => emulator.keys[0xb] = 0,
-			Key::C	  => emulator.keys[0xc] = 0,
-            Key::D    => emulator.keys[0xd] = 0,
-			Key::E    => emulator.keys[0xe] = 0,
-			Key::F    => emulator.keys[0xf] = 0,
-            _ => (),
-        });
-
-
-        // We unwrap here as we want this code to exit if it fails. Real applications may want to handle this in a different way
-        window
-            .update_with_buffer(&buffer, WIDTH, HEIGHT)
-            .unwrap();
-    }
+		thread::sleep(time::Duration::from_secs_f64(1.0/60.0));
+	}
 
 }
